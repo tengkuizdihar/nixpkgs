@@ -26,7 +26,7 @@ let
     owner = "solver-orgz";
     repo = "treedome";
     rev = "${version}";
-    hash = lib.fakeSha256;
+    sha256 = "sha256-492EAKCXyc4s9FvkpqppZ/GllYuYe0YsXgbRl/oQBgE=";
   };
 
   frontend-build = mkYarnPackage {
@@ -58,7 +58,7 @@ let
 in
 rustPlatform.buildRustPackage {
   inherit version pname src;
-  sourceRoot = "src-tauri";
+  sourceRoot = "${src.name}/src-tauri";
 
   cargoLock = {
     lockFile = ./Cargo.lock;
@@ -67,19 +67,35 @@ rustPlatform.buildRustPackage {
     };
   };
 
+  preConfigure = ''
+    mkdir -p dist
+    cp -R ${frontend-build}/dist/** dist
+  '';
+
   # copy the frontend static resources to final build directory
   # Also modify tauri.conf.json so that it expects the resources at the new location
   postPatch = ''
-    mkdir -p dist
-    cp -R ${frontend-build}/dist/** dist
-
-    ls -al
     substituteInPlace ./tauri.conf.json --replace '"distDir": "../dist",' '"distDir": "dist",'
     substituteInPlace ./tauri.conf.json --replace '"beforeBuildCommand": "yarn run build",' '"beforeBuildCommand": "",'
   '';
 
-  nativeBuildInputs = [ cmake pkg-config cargo-tauri wrapGAppsHook ];
-  buildInputs = [ dbus openssl freetype libsoup gtk3 webkitgtk gsettings-desktop-schemas sqlite ];
+  nativeBuildInputs = [
+    cmake
+    pkg-config
+    cargo-tauri
+    wrapGAppsHook
+  ];
+
+  buildInputs = [
+    dbus
+    openssl
+    freetype
+    libsoup
+    gtk3
+    webkitgtk
+    gsettings-desktop-schemas
+    sqlite
+  ];
 
   buildPhase = ''
     runHook preBuild
@@ -102,14 +118,14 @@ rustPlatform.buildRustPackage {
   '';
 
   # WEBKIT_DISABLE_COMPOSITING_MODE essential in NVIDIA + compositor https://github.com/NixOS/nixpkgs/issues/212064#issuecomment-1400202079
-  postInstall = ''
+  postFixup = ''
     wrapProgram "$out/bin/treedome" \
       --set WEBKIT_DISABLE_COMPOSITING_MODE 1
   '';
 
   meta = with lib; {
     description = "A local-first, encrypted, note taking application with tree-like structures, all written and saved in markdown";
-    homepage = "https://gitlab.com/treedome/treedome";
+    homepage = " https://codeberg.org/solver-orgz/treedome";
     license = licenses.gpl3Plus;
     platforms = [ "x86_64-linux" ];
     mainProgram = "treedome";
