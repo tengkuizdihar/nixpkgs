@@ -1,13 +1,10 @@
 { lib
-, cargo-tauri_1
-, cmake
+, cargo-tauri
 , dbus
 , fetchgit
 , fetchYarnDeps
 , freetype
 , gsettings-desktop-schemas
-, gtk3
-, libsoup
 , stdenv
 , yarnConfigHook
 , yarnBuildHook
@@ -15,19 +12,20 @@
 , openssl
 , pkg-config
 , rustPlatform
-, webkitgtk_4_0
+, webkitgtk_4_1
+, libayatana-appindicator
 , wrapGAppsHook3
 , sqlite
 }:
 
 let
   pname = "treedome";
-  version = "0.5.1";
+  version = "0.5.3";
 
   src = fetchgit {
     url = "https://codeberg.org/solver-orgz/treedome";
     rev = version;
-    hash = "sha256-EYSB9BJhk0yIwT1h8cIo6fpDI10av6yCtOR4FuAY5dM=";
+    hash = "sha256-83H2j6yk/MOdIVHTRZkpD1Q9GS21kzW2myTVvqsBz7M=";
     fetchLFS = true;
   };
 
@@ -37,7 +35,7 @@ let
 
     offlineCache = fetchYarnDeps {
       yarnLock = "${src}/yarn.lock";
-      hash = "sha256-H9Y/heYEPU5LvIZAgVn0FhiNQ0QKAQEDQ1/oFogi9vc=";
+      hash = "sha256-in1A1XcfZK5F/EV5CYgfqig+8vKsxd6XhzfSv7Z0nNQ=";
     };
 
     nativeBuildInputs = [
@@ -67,10 +65,6 @@ rustPlatform.buildRustPackage {
     };
   };
 
-  env = {
-    VERGEN_GIT_DESCRIBE = version;
-  };
-
   preConfigure = ''
     mkdir -p dist
     cp -R ${frontend-build}/dist/** dist
@@ -80,14 +74,16 @@ rustPlatform.buildRustPackage {
   # Also modify tauri.conf.json so that it expects the resources at the new location
   postPatch = ''
     substituteInPlace ./tauri.conf.json \
-      --replace '"distDir": "../dist",' '"distDir": "dist",' \
-      --replace '"beforeBuildCommand": "yarn run build",' '"beforeBuildCommand": "",'
+      --replace-fail '"frontendDist": "../dist",' '"frontendDist": "dist",' \
+      --replace-fail '"beforeBuildCommand": "yarn run build",' '"beforeBuildCommand": "",'
+
+    substituteInPlace $cargoDepsCopy/libappindicator-sys-*/src/lib.rs \
+      --replace-fail "libayatana-appindicator3.so.1" "${libayatana-appindicator}/lib/libayatana-appindicator3.so.1"
   '';
 
   nativeBuildInputs = [
-    cmake
+    cargo-tauri.hook
     pkg-config
-    cargo-tauri_1
     wrapGAppsHook3
   ];
 
@@ -95,32 +91,15 @@ rustPlatform.buildRustPackage {
     dbus
     openssl
     freetype
-    libsoup
-    gtk3
-    webkitgtk_4_0
+    webkitgtk_4_1
+    libayatana-appindicator
     gsettings-desktop-schemas
     sqlite
   ];
 
-  buildPhase = ''
-    runHook preBuild
-
-    cargo tauri build
-
-    runHook postBuild
-  '';
-
-  installPhase = ''
-    runHook preInstall
-
-    mkdir -p $out/bin/
-    mkdir -p $out/share/
-
-    cp target/release/bundle/deb/treedome_0.0.0_amd64/data/usr/bin/treedome $out/bin/treedome
-    cp -R target/release/bundle/deb/treedome_0.0.0_amd64/data/usr/share/** $out/share/
-
-    runHook postInstall
-  '';
+  env = {
+    VERGEN_GIT_DESCRIBE = version;
+  };
 
   # WEBKIT_DISABLE_COMPOSITING_MODE essential in NVIDIA + compositor https://github.com/NixOS/nixpkgs/issues/212064#issuecomment-1400202079
   postFixup = ''
